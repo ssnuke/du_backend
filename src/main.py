@@ -22,3 +22,7 @@ app.add_middleware(CORSMiddleware,
 @app.get("/")
 def hello():
     return {"message":" Hello world "}
+
+@app.get("/healthz")
+def read_api_health():
+    return {"status": "ok"}
