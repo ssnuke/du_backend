@@ -44,8 +44,8 @@ instance/
 *.sqlite3
 
 # Environments
-.env
-.env.*
+# .env
+# .env.*
 
 # VSCode settings
 .vscode/
