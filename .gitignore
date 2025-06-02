@@ -1,0 +1,82 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+VENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.pyre/
+
+# FastAPI specific
+*.log
+instance/
+*.db
+*.sqlite3
+
+# Environments
+.env
+.env.*
+
+# VSCode settings
+.vscode/
+
+# Docker
+*.pid
+docker-compose.override.yml
+__docker_build__/
+*.tar
+*.log
+
+# mypy, pyright
+.mypy_cache/
+.pytype/
+.pyright/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+
+# Mac and Linux
+.DS_Store
+*.~undo-tree~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Static or media folders (optional)
+staticfiles/
+media/
+
+# Uvicorn reload artifacts (optional)
+reload/

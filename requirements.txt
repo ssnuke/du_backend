@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+gunicorn
+sqlmodel
+pydantic[email]
+sqlalchemy
+requests
+psycopg[binary]
+python-decouple
+pytz
+passlib[bcrypt]

@@ -1,0 +1,39 @@
+services:
+  app:
+    image: dreamersunited_backend:v1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8002:8002"
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+    volumes:
+      - ./src:/code:rw
+    depends_on:
+      - db_service
+    restart: on-failure
+    develop:
+      watch:
+      - action: rebuild
+        path: Dockerfile
+      - action: rebuild
+        path: requirements.txt
+      - action: rebuild
+        path: compose.yaml
+  db_service:
+    image: postgres:17.4
+    environment:
+      - POSTGRES_USER=db_user
+      - POSTGRES_PASSWORD=db_password 
+      - POSTGRES_DB=dreamersunited_db
+    ports:
+      - "5423:5432"
+    expose:
+      - 5432
+    volumes:
+      - dreamersuniteddb_data:/var/lib/postgresql/data
+
+volumes:
+  dreamersuniteddb_data:
