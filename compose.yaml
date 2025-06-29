@@ -8,7 +8,7 @@ services:
       - .env
     ports:
       - "8002:8002"
-    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+    command: ["./wait_for_db.sh", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
     volumes:
       - ./src:/code:rw
     depends_on:
