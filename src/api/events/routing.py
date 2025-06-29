@@ -125,11 +125,11 @@ def add_ir_id(payload: IrIdValidation, session: Session = Depends(get_session)):
         except ValidationError as ve:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": "Validation error", "details": ve.errors()}
+                detail={"error": "Validation error", "details": str(e)}
             )
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500,detail={"error": "Unexpected error", "details":e.errors()})
+        raise HTTPException(status_code=500,detail={"error": "Unexpected error", "details": str(e)})
 
 #Register IR 
 @router.post("/register_new_ir")
