@@ -1,8 +1,6 @@
 import sqlmodel
 from sqlmodel import SQLModel, Session
 from .config import DATABASE_URL
-from api.events.models import IrIdModel
-
 
 if DATABASE_URL == "":
     raise NotImplementedError("DATABASE_URL needs to be set!!!")
