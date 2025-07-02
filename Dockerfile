@@ -47,10 +47,15 @@ COPY ./src /code
 # Install the Python project requirements
 RUN pip install -r /tmp/requirements.txt
 
+COPY wait-for-db.sh /wait-for-db.sh
+RUN chmod +x /wait-for-db.sh
+
+RUN apt-get update && apt-get install -y postgresql-client
 
 # make the bash script executable
 COPY ./boot/docker-run.sh /opt/run.sh
 RUN chmod +x /opt/run.sh
+
 
 # Clean up apt cache to reduce image size
 RUN apt-get remove --purge -y \
