@@ -9,6 +9,7 @@ engine = sqlmodel.create_engine(DATABASE_URL)
 
 def init_db():
     try:
+        print("Creating tables")
         SQLModel.metadata.create_all(engine)
     except Exception as e:
         print(f"Error creating tables: {e}")

@@ -23,8 +23,7 @@ services:
       - action: rebuild
         path: compose.yaml
   db_service:
-    image: postgres:15.2-alpine
-    restart: always
+    image: postgres:15-alpine
     environment:
       - POSTGRES_USER=db_user
       - POSTGRES_PASSWORD=db_password 
