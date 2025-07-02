@@ -23,15 +23,14 @@ services:
       - action: rebuild
         path: compose.yaml
   db_service:
-    image: postgres:15-alpine
+    image: postgres:15.2-alpine
+    restart: always
     environment:
       - POSTGRES_USER=db_user
       - POSTGRES_PASSWORD=db_password 
       - POSTGRES_DB=dreamersunited_db
     ports:
       - "5423:5432"
-    expose:
-      - 5432
     volumes:
       - dreamersuniteddb_data:/var/lib/postgresql/data
 
