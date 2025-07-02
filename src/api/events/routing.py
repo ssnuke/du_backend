@@ -42,9 +42,12 @@ class TeamRole(str, Enum):
 #GET Requests
 @router.get("/get_all_ir")
 def get_all_ir(session:Session=Depends(get_session)):
-    query = select(IrIdModel) #.order_by(IrIdModel.ir_id.desc()) #.limit(10)
-    results = session.exec(query).all()
-    return results
+    try:
+        query = select(IrIdModel) #.order_by(IrIdModel.ir_id.desc()) #.limit(10)
+        results = session.exec(query).all()
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"Error": str(e)})
 
 @router.get("/ir/{fetch_ir_id}")
 def get_single_ir(fetch_ir_id:str ,session:Session=Depends(get_session)):
