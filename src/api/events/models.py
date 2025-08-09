@@ -73,6 +73,7 @@ class IrModel(SQLModel, table=True):
     ir_id: str = Field(primary_key=True, max_length=18, title="IR ID")
     ir_name: str = Field(max_length=45, title="IR Name")
     ir_email: EmailStr = Field(title="IR Email")
+    ir_access_level: int = Field(default=5, title="IR Access Level", ge=1, le=5) #1= Admin, 2 = LDC, 3 = LS, 4 = GC , 5 = IR
     ir_password: PasswordStr
     status: bool = Field(default=True, title="IR Status")
     plan_count: Optional[int] = Field(title="Plan Count", default=0)
