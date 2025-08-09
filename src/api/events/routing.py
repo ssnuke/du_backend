@@ -57,14 +57,24 @@ def get_single_ir(fetch_ir_id:str ,session:Session=Depends(get_session)):
         raise HTTPException(status_code=404, detail="IR ID Not Found!")
     return result
 
+from fastapi.responses import JSONResponse
+
 @router.get("/irs")
-def get_all_registered_ir(session:Session=Depends(get_session)):
+def get_all_registered_ir(session: Session = Depends(get_session)):
     try:
         query = select(IrModel)
         results = session.exec(query).all()
-        return results
+        
+        # Convert ORM objects to dictionaries
+        data = [r.dict() for r in results]
+        
+        return JSONResponse(content={"data": data, "count": len(data)})
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"Error": str(e)})
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
     
 @router.get("/ldcs")
 def get_ldcs(session: Session = Depends(get_session)):
