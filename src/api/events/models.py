@@ -5,6 +5,8 @@ import pytz
 from pydantic import field_validator,EmailStr,constr
 from enum import Enum
 
+#psql "postgresql://db_user:eoOw0MT2IcJuq62UV82adBeYdeadGVQ3@dpg-d1tc4k8dl3ps739ajc50-a.oregon-postgres.render.com:5432/dreamersunited_db"
+
 
 # Enum to define roles
 class TeamRole(str, Enum):

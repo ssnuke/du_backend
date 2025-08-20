@@ -9,6 +9,8 @@ from sqlmodel import Session, select
 from .models import IrIdModel
 from passlib.hash import bcrypt
 from enum import Enum
+from api.db.session import reset_db
+
 
 router = APIRouter()
 
@@ -260,3 +262,10 @@ def update_ir_details(update_ir:str,session:Session=Depends(get_session)):
 
 
 #DELETE Requests
+@router.post("/api/reset_database")
+def reset_database():
+    try:
+        reset_db()
+        return {"status": "success", "message": "Database has been reset successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

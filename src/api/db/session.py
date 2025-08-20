@@ -14,6 +14,16 @@ def init_db():
     except Exception as e:
         print(f"Error creating tables: {e}")
 
+def reset_db():
+    """Drops all tables and recreates them"""
+    try:
+        print("Resetting database...")
+        SQLModel.metadata.drop_all(engine)   # Drop all existing tables
+        SQLModel.metadata.create_all(engine) # Recreate tables
+        print("✅ Database reset successful!")
+    except Exception as e:
+        print(f"Error resetting database: {e}")
+
 def get_session():
     with Session(engine) as session:
         yield session
