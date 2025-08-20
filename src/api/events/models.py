@@ -5,7 +5,16 @@ import pytz
 from pydantic import field_validator,EmailStr,constr
 from enum import Enum
 
-#psql "postgresql://db_user:eoOw0MT2IcJuq62UV82adBeYdeadGVQ3@dpg-d1tc4k8dl3ps739ajc50-a.oregon-postgres.render.com:5432/dreamersunited_db"
+'''
+Database URL for PostgreSQL
+psql postgresql://db_user:eoOw0MT2IcJuq62UV82adBeYdeadGVQ3@dpg-d1tc4k8dl3ps739ajc50-a.singapore-postgres.render.com/dreamersunited_db
+\l # List all databases
+\c dreamersunited_db # Connect to the database
+\dt # List all tables in the current database
+\di # List all indexes in the current database
+DROP DATABASE dreamersunited_db;
+CREATE DATABASE dreamersunited_db;
+'''
 
 
 # Enum to define roles

@@ -10,6 +10,7 @@ from .models import IrIdModel
 from passlib.hash import bcrypt
 from enum import Enum
 from api.db.session import reset_db
+from fastapi.responses import JSONResponse
 
 
 router = APIRouter()
@@ -53,13 +54,12 @@ def get_all_ir(session:Session=Depends(get_session)):
 
 @router.get("/ir/{fetch_ir_id}")
 def get_single_ir(fetch_ir_id:str ,session:Session=Depends(get_session)):
-    query = select(IrIdModel).where(IrIdModel.ir_id == fetch_ir_id)
+    query = select(IrModel).where(IrModel.ir_id == fetch_ir_id)
     result = session.exec(query).first()
     if not result:
         raise HTTPException(status_code=404, detail="IR ID Not Found!")
     return result
 
-from fastapi.responses import JSONResponse
 
 @router.get("/irs")
 def get_all_registered_ir(session: Session = Depends(get_session)):
@@ -77,7 +77,6 @@ def get_all_registered_ir(session: Session = Depends(get_session)):
             content={"error": str(e)}
         )
 
-    
 @router.get("/ldcs")
 def get_ldcs(session: Session = Depends(get_session)):
     try:
