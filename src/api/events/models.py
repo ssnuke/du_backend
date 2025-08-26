@@ -24,6 +24,10 @@ class TeamRole(str, Enum):
     GC = "GC"
     IR = "IR"
 
+class InfoResponse(str, Enum):
+    A = "A"
+    B = "B"
+    C = "C"
 
 IST = pytz.timezone("Asia/Kolkata")
 PasswordStr = Annotated[str, Field(min_length=8, max_length=64, title="IR Password")]
@@ -59,7 +63,7 @@ class AssignIrValidation(SQLModel):
 
 #SQL TABLES
 class IrIdModel(SQLModel, table=True):
-    ir_id:str  = Field(primary_key=True,max_length=18)
+    ir_id: str = Field(primary_key=True, max_length=18)
 
 
 # Team Model
@@ -101,3 +105,11 @@ class IrModel(SQLModel, table=True):
         if isinstance(v, datetime):
             return v.astimezone(IST).strftime("%d-%m-%Y")
         return v
+    
+class InfoDetailModel(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ir_id: str = Field(foreign_key="irmodel.ir_id")
+    info_date: datetime = Field(default_factory=lambda: datetime.now(IST), title="Info Date")
+    response: InfoResponse = Field(title="Response Option")
+    comments: Optional[str] = Field(title="Comments")
+    info_name: str = Field(title="Info Name of the Person")

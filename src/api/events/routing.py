@@ -1,7 +1,7 @@
 import os 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from .models import GetIrSchema,GetListIrSchema,IrIdValidation,IrModel,IrLoginValidation,TeamModel,TeamMemberLink,CreateTeamValidation,AssignIrValidation
+from .models import GetIrSchema,GetListIrSchema,IrIdValidation,IrModel,IrLoginValidation,TeamModel,TeamMemberLink,CreateTeamValidation,AssignIrValidation,InfoDetailModel
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pydantic import ValidationError
 from api.db.session import get_session
@@ -11,6 +11,7 @@ from passlib.hash import bcrypt
 from enum import Enum
 from api.db.session import reset_db
 from fastapi.responses import JSONResponse
+from datetime import datetime
 
 
 router = APIRouter()
@@ -76,6 +77,15 @@ def get_all_registered_ir(session: Session = Depends(get_session)):
             status_code=500,
             content={"error": str(e)}
         )
+    
+@router.get("/teams")
+def get_all_teams(session: Session = Depends(get_session)):
+    try:
+        teams = session.exec(select(TeamModel)).all()
+        result = [team.model_dump() for team in teams]
+        return JSONResponse(status_code=200, content=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
 @router.get("/ldcs")
 def get_ldcs(session: Session = Depends(get_session)):
@@ -118,9 +128,32 @@ def get_team_members(team_id: int, session: Session = Depends(get_session)):
         members = session.exec(
             select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
         ).all()
-        return JSONResponse(status_code=200, content=members)
+        # Serialize each member to dict
+        return JSONResponse(
+            status_code=200,
+            content=[member.model_dump() for member in members]
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Unexpected Error Occured")
+        raise HTTPException(status_code=500, detail=f"{e}")
+
+#Get info details for an IR
+@router.get("/info_details/{ir_id}")
+def get_info_details(ir_id: str, session: Session = Depends(get_session)):
+    try:
+        info_details = session.exec(
+            select(InfoDetailModel).where(InfoDetailModel.ir_id == ir_id)
+        ).all()
+        # Convert datetime to string for each info detail
+        result = []
+        for info in info_details:
+            data = info.model_dump()
+            if isinstance(data.get("info_date"), datetime):
+                data["info_date"] = data["info_date"].isoformat()
+            result.append(data)
+        return JSONResponse(status_code=200, content=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
+#Get info details for an IR
 #GET Requests
 
 
@@ -131,7 +164,8 @@ def add_ir_id(payload: IrIdValidation, session: Session = Depends(get_session)):
         print(payload)
         data = payload.model_dump()
         try:
-            obj = IrIdModel.model_validate(data)
+            # obj = IrIdModel.model_validate(data)
+            obj = IrIdModel(**data) 
             session.add(obj)
             session.commit()
             session.refresh(obj)
@@ -208,24 +242,21 @@ def create_team(payload:CreateTeamValidation, session: Session = Depends(get_ses
         session.rollback()
         raise HTTPException(status_code=500, detail=str(e))        
 
-@router.post("/assign_ir_to_team")
-def assign_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_session)):
+#Add IR to Team with Role
+@router.post("/add_ir_to_team")
+def add_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_session)):
     try:
-        # Step 1: Check if the IR is already assigned to the same team
         existing = session.exec(
             select(TeamMemberLink).where(
                 TeamMemberLink.ir_id == payload.ir_id,
                 TeamMemberLink.team_id == payload.team_id
             )
         ).first()
-
         if existing:
             raise HTTPException(
                 status_code=409,
                 detail=f"IR '{payload.ir_id}' is already assigned to team {payload.team_id}"
             )
-
-        # Step 2: Create new assignment
         link = TeamMemberLink(
             ir_id=payload.ir_id,
             team_id=payload.team_id,
@@ -233,18 +264,43 @@ def assign_ir_to_team(payload: AssignIrValidation, session: Session = Depends(ge
         )
         session.add(link)
         session.commit()
-
         return JSONResponse(
             status_code=201,
             content={"message": f"{payload.role} assigned to team {payload.team_id}"}
         )
-
     except HTTPException:
         raise
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 
+#Add Info Detail for an IR
+@router.post("/add_info_detail/{ir_id}")
+def add_info_detail(ir_id: str, payload: InfoDetailModel, session: Session = Depends(get_session)):
+    try:
+        ir = session.get(IrModel, ir_id)
+        if not ir:
+            raise HTTPException(status_code=404, detail="IR not found")
+        
+        info_detail = InfoDetailModel(
+            ir_id=ir_id,
+            info_date=payload.info_date,
+            response=payload.response,
+            comments=payload.comments,
+            info_name=payload.info_name
+        )
+        session.add(info_detail)
+        session.commit()
+        session.refresh(info_detail)
+        
+        return JSONResponse(
+            status_code=201,
+            content={"message": "Info detail added", "info_id": info_detail.id}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+#Add Info Detail for an IR
 
 #POST Requests
 
@@ -257,14 +313,136 @@ def update_ir_details(update_ir:str,session:Session=Depends(get_session)):
         raise HTTPException(status_code=404, detail="IR ID Not Found!")
     
     return None
+
+#Update info details for an IR
+@router.put("/update_info_detail/{info_id}")
+def update_info_detail(info_id: int, payload: InfoDetailModel, session: Session = Depends(get_session)):
+    try:
+        info_detail = session.get(InfoDetailModel, info_id)
+        if not info_detail:
+            raise HTTPException(status_code=404, detail="Info detail not found")
+        
+        info_detail.info_date = payload.info_date
+        info_detail.response = payload.response
+        info_detail.comments = payload.comments
+        info_detail.info_name = payload.info_name
+        
+        session.add(info_detail)
+        session.commit()
+        session.refresh(info_detail)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Info detail updated", "info_id": info_detail.id}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+#Update info details for an IR
+
 #PUT Requests
 
 
+#UPDATE Requests
+@router.patch("/update_team_name/{team_id}")
+def update_team_name(team_id: int, payload: CreateTeamValidation, session: Session = Depends(get_session)):
+    try:
+        team = session.get(TeamModel, team_id)
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+
+        old_name = team.name
+        team.name = payload.name
+        session.add(team)
+        session.commit()
+        session.refresh(team)
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Team name updated",
+                "team_id": team.id,
+                "old_name": old_name,
+                "new_name": team.name
+            }
+        )
+    except Exception as e:
+        print("Error occured while updating team data - ",e)
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+#UPDATE Requests
+
 #DELETE Requests
-@router.post("/api/reset_database")
+@router.post("/reset_database")
 def reset_database():
     try:
         reset_db()
         return {"status": "success", "message": "Database has been reset successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/delete_team/{team_id}")
+def delete_team(team_id: int, session: Session = Depends(get_session)):
+    try:
+        team = session.get(TeamModel, team_id)
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+        
+        # Delete associated TeamMemberLink entries
+        session.exec(
+            select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
+        ).all()
+        session.delete(team)
+        session.commit()
+        return JSONResponse(
+            status_code=200,
+            content={"message": f"Team with ID {team_id} has been deleted"}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+
+#Remove IR from Team
+@router.delete("/remove_ir_from_team/{team_id}/{ir_id}")
+def remove_ir_from_team(team_id: int, ir_id: str, session: Session = Depends(get_session)):
+    try:
+        link = session.exec(
+            select(TeamMemberLink).where(
+                TeamMemberLink.team_id == team_id,
+                TeamMemberLink.ir_id == ir_id
+            )
+        ).first()
+        if not link:
+            raise HTTPException(status_code=404, detail="IR not found in team")
+        session.delete(link)
+        session.commit()
+        return JSONResponse(
+            status_code=200,
+            content={"message": f"IR '{ir_id}' removed from team {team_id}"}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+    
+
+#Delete info detail for an IR
+@router.delete("/delete_info_detail/{info_id}")
+def delete_info_detail(info_id: int, session: Session = Depends(get_session)):  
+    try:
+        info_detail = session.get(InfoDetailModel, info_id)
+        if not info_detail:
+            raise HTTPException(status_code=404, detail="Info detail not found")
+        
+        session.delete(info_detail)
+        session.commit()
+        
+        return JSONResponse(
+            status_code=200,
+            content={"message": f"Info detail with ID {info_id} has been deleted"}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+#Delete info detail for an IR
