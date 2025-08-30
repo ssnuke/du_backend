@@ -16,27 +16,6 @@ from datetime import datetime
 
 router = APIRouter()
 
-# @router.get("/")
-# def send_add_ir_ids() -> GetListIrSchema:
-#     print("Fetching all IR ID's!")
-#     print(os.environ.get("DATABASE_URL"))
-#     return {
-#         "results": [{"id": 1,
-#         "ir_name": 'Name comes here',},
-#        { "id": 2,
-#         "ir_name": 'Name comes here',},
-#         { "id":33,
-#         "ir_name": 'Name comes here',}]
-#     }
-
-# @router.get("/{ir_id}")
-# def send_add_ir_id(ir_id: int) -> GetIrSchema:
-#     print("Fetching IR ID details!")
-#     return {
-#         "id": ir_id,
-#         "ir_name": 'Name comes here',
-    # }
-
 class TeamRole(str, Enum):
     LDC = "LDC"
     LS = "LS"
@@ -44,6 +23,18 @@ class TeamRole(str, Enum):
     IR = "IR"
 
 #GET Requests
+"""
+Fetches all IR (IrIdModel) records from the database.
+
+Args:
+    session (Session): SQLAlchemy session dependency.
+
+Returns:
+    List[IrIdModel]: A list of all IR records.
+
+Raises:
+    HTTPException: If an error occurs during database query, returns a 500 status code with error details.
+"""
 @router.get("/get_all_ir")
 def get_all_ir(session:Session=Depends(get_session)):
     try:
@@ -53,6 +44,19 @@ def get_all_ir(session:Session=Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail={"Error": str(e)})
 
+"""
+Fetch a single IR (Incident Report) by its ID.
+
+Args:
+    fetch_ir_id (str): The ID of the IR to retrieve.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    IrModel: The IR object corresponding to the given ID.
+
+Raises:
+    HTTPException: If no IR is found with the specified ID, returns a 404 error.
+"""
 @router.get("/ir/{fetch_ir_id}")
 def get_single_ir(fetch_ir_id:str ,session:Session=Depends(get_session)):
     query = select(IrModel).where(IrModel.ir_id == fetch_ir_id)
@@ -61,7 +65,14 @@ def get_single_ir(fetch_ir_id:str ,session:Session=Depends(get_session)):
         raise HTTPException(status_code=404, detail="IR ID Not Found!")
     return result
 
-
+"""
+Fetches all registered IR (Incident Report) records from the database.
+Args:
+    session (Session): SQLModel session dependency for database access.
+Returns:
+    JSONResponse: A JSON response containing a list of IR records and their count.
+                  On error, returns a JSON response with error details and status code 500.
+"""
 @router.get("/irs")
 def get_all_registered_ir(session: Session = Depends(get_session)):
     try:
@@ -78,6 +89,18 @@ def get_all_registered_ir(session: Session = Depends(get_session)):
             content={"error": str(e)}
         )
     
+"""
+Fetches all teams from the database.
+
+Args:
+    session (Session, optional): SQLModel session dependency for database access.
+
+Returns:
+    JSONResponse: A JSON response containing a list of all teams with status code 200.
+
+Raises:
+    HTTPException: If an unexpected error occurs during database access, returns a 500 status code with error details.
+"""    
 @router.get("/teams")
 def get_all_teams(session: Session = Depends(get_session)):
     try:
@@ -87,6 +110,22 @@ def get_all_teams(session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
+
+"""
+Fetches all unique LDC (Local Data Coordinator) members and their details.
+
+This endpoint retrieves all team member links with the role of LDC, extracts their unique IR IDs,
+fetches corresponding IrModel objects, and returns a serialized list of LDCs with their IR ID and name.
+
+Args:
+    session (Session): Database session dependency.
+
+Returns:
+    JSONResponse: A list of dictionaries containing 'ir_id', 'ir_name', and 'id' for each LDC.
+
+Raises:
+    HTTPException: If an unexpected error occurs during processing.
+"""
 @router.get("/ldcs")
 def get_ldcs(session: Session = Depends(get_session)):
     try:
@@ -108,6 +147,19 @@ def get_ldcs(session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
+"""
+Fetches all teams associated with a given LDC (Local District Coordinator) ID.
+
+Args:
+    ldc_id (str): The ID of the LDC to filter teams by.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    JSONResponse: A JSON response containing a list of teams associated with the specified LDC ID.
+
+Raises:
+    HTTPException: If an unexpected error occurs during database query or processing.
+"""
 @router.get("/teams_by_ldc/{ldc_id}")
 def get_teams_by_ldc(ldc_id: str, session: Session = Depends(get_session)):
     try:
@@ -122,6 +174,20 @@ def get_teams_by_ldc(ldc_id: str, session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
+
+"""
+Retrieve all members of a specified team.
+
+Args:
+    team_id (int): The ID of the team whose members are to be retrieved.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    JSONResponse: A list of serialized team member objects with status code 200.
+
+Raises:
+    HTTPException: If an error occurs during retrieval, returns status code 500 with error details.
+"""
 @router.get("/team_members/{team_id}")
 def get_team_members(team_id: int, session: Session = Depends(get_session)):
     try:
@@ -137,6 +203,19 @@ def get_team_members(team_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"{e}")
 
 #Get info details for an IR
+"""
+Fetches information details for a given IR ID.
+
+Args:
+    ir_id (str): The IR ID for which to retrieve information details.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    JSONResponse: A JSON response containing a list of info details with 'info_date' fields converted to ISO format strings.
+
+Raises:
+    HTTPException: If an unexpected error occurs during retrieval.
+"""
 @router.get("/info_details/{ir_id}")
 def get_info_details(ir_id: str, session: Session = Depends(get_session)):
     try:
@@ -158,6 +237,25 @@ def get_info_details(ir_id: str, session: Session = Depends(get_session)):
 
 
 #POST Requests
+"""
+Adds a new IR ID to the database.
+
+This endpoint receives a payload containing IR ID data, validates it, and inserts it into the database.
+On successful insertion, the newly created IR ID object is returned.
+Handles validation errors and unexpected exceptions, returning appropriate HTTP error responses.
+
+Args:
+    payload (IrIdValidation): The IR ID data to be added, validated against the IrIdValidation schema.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    GetIrSchema: The newly created IR ID object.
+
+Raises:
+    HTTPException: 
+        - 422 if validation fails.
+        - 500 for unexpected errors during database operations.
+"""
 @router.post("/add_ir_id", response_model=GetIrSchema)
 def add_ir_id(payload: IrIdValidation, session: Session = Depends(get_session)):
     try:
@@ -180,6 +278,27 @@ def add_ir_id(payload: IrIdValidation, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500,detail={"error": "Unexpected error", "details": str(e)})
 
 #Register IR 
+"""
+Registers a new IR (Incident Reporter) in the system.
+
+Workflow:
+    1. Checks if the provided IR ID exists in the IrIdModel table.
+    2. If the IR ID exists, hashes the IR password and registers the IR with all provided details.
+    3. If the IR ID does not exist, raises a 404 error ("IR ID Not Found!").
+
+Args:
+    payload (IrModel): The IR registration details.
+    session (Session, optional): Database session dependency.
+
+Raises:
+    HTTPException: 
+        - 404 if IR ID is not found.
+        - 422 if there is a database integrity error.
+        - 500 for any unexpected errors.
+
+Returns:
+    JSONResponse: Success message and registered IR ID on successful registration.
+"""
 @router.post("/register_new_ir")
 def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
     '''
@@ -213,6 +332,19 @@ def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
                 detail={"error": "Unexpected error", "details": str(e)}
             )
 
+
+"""
+Handles IR login requests.
+Args:
+    payload (IrLoginValidation): The login credentials containing IR ID and password.
+    session (Session, optional): The database session dependency.
+Raises:
+    HTTPException: If IR ID is not found (404).
+    HTTPException: If password is invalid (401).
+    HTTPException: For any other internal server errors (500).
+Returns:
+    JSONResponse: A response with status code 201 and IR data on successful login.
+"""
 @router.post("/login")
 def ir_login(payload:IrLoginValidation,session:Session=Depends(get_session)):
     try:
@@ -230,6 +362,19 @@ def ir_login(payload:IrLoginValidation,session:Session=Depends(get_session)):
         session.rollback()
         raise HTTPException(status_code=500,detail=str(e))
 
+"""
+Creates a new team in the database.
+
+Args:
+    payload (CreateTeamValidation): The validated payload containing the team name.
+    session (Session, optional): The database session, injected by dependency.
+
+Returns:
+    JSONResponse: A response with status code 201, containing a message, the created team's ID, and name.
+
+Raises:
+    HTTPException: If an error occurs during team creation, returns a 500 status code with the error detail.
+"""
 @router.post("/create_team")
 def create_team(payload:CreateTeamValidation, session: Session = Depends(get_session)):
     try:
@@ -243,6 +388,20 @@ def create_team(payload:CreateTeamValidation, session: Session = Depends(get_ses
         raise HTTPException(status_code=500, detail=str(e))        
 
 #Add IR to Team with Role
+"""
+Assigns an IR (Incident Responder) to a team with a specified role.
+
+Args:
+    payload (AssignIrValidation): The request payload containing ir_id, team_id, and role.
+    session (Session, optional): Database session dependency.
+
+Raises:
+    HTTPException: If the IR is already assigned to the team (409 Conflict).
+    HTTPException: For unexpected errors during assignment (500 Internal Server Error).
+
+Returns:
+    JSONResponse: Success message with status code 201 if assignment is successful.
+"""
 @router.post("/add_ir_to_team")
 def add_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_session)):
     try:
@@ -275,6 +434,17 @@ def add_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_s
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 
 #Add Info Detail for an IR
+"""
+Adds a new info detail entry associated with a given IR (Incident Report) ID.
+Args:
+    ir_id (str): The ID of the IR to associate the info detail with.
+    payload (InfoDetailModel): The info detail data to be added.
+    session (Session, optional): The database session dependency.
+Raises:
+    HTTPException: If the IR is not found (404) or if an unexpected error occurs (500).
+Returns:
+    JSONResponse: A response containing a success message and the newly created info detail ID.
+"""
 @router.post("/add_info_detail/{ir_id}")
 def add_info_detail(ir_id: str, payload: InfoDetailModel, session: Session = Depends(get_session)):
     try:
@@ -305,6 +475,16 @@ def add_info_detail(ir_id: str, payload: InfoDetailModel, session: Session = Dep
 #POST Requests
 
 #PUT Requests
+"""
+Updates the details of an IR (Incident Report) identified by the given IR ID.
+Args:
+    update_ir (str): The IR ID to update.
+    session (Session, optional): Database session dependency.
+Raises:
+    HTTPException: If the IR ID is not found in the database (404).
+Returns:
+    None
+"""
 @router.put("/{update_ir}")
 def update_ir_details(update_ir:str,session:Session=Depends(get_session)):
     query = select(IrIdModel).where(IrIdModel.ir_id == update_ir)
@@ -315,6 +495,18 @@ def update_ir_details(update_ir:str,session:Session=Depends(get_session)):
     return None
 
 #Update info details for an IR
+"""
+Updates an existing InfoDetailModel record with new details.
+Args:
+    info_id (int): The ID of the info detail to update.
+    payload (InfoDetailModel): The updated info detail data.
+    session (Session, optional): SQLAlchemy session dependency.
+Raises:
+    HTTPException: If the info detail is not found (404).
+    HTTPException: If an unexpected error occurs during update (500).
+Returns:
+    JSONResponse: Success message and updated info_id if update is successful.
+"""
 @router.put("/update_info_detail/{info_id}")
 def update_info_detail(info_id: int, payload: InfoDetailModel, session: Session = Depends(get_session)):
     try:
@@ -344,6 +536,21 @@ def update_info_detail(info_id: int, payload: InfoDetailModel, session: Session 
 
 
 #UPDATE Requests
+
+"""
+Updates the name of a team with the given team ID.
+
+Args:
+    team_id (int): The ID of the team to update.
+    payload (CreateTeamValidation): The request body containing the new team name.
+    session (Session, optional): The database session dependency.
+
+Returns:
+    JSONResponse: A response containing a success message, team ID, old name, and new name.
+
+Raises:
+    HTTPException: If the team is not found (404) or if an error occurs during the update (500).
+"""
 @router.patch("/update_team_name/{team_id}")
 def update_team_name(team_id: int, payload: CreateTeamValidation, session: Session = Depends(get_session)):
     try:
@@ -375,6 +582,15 @@ def update_team_name(team_id: int, payload: CreateTeamValidation, session: Sessi
 #UPDATE Requests
 
 #DELETE Requests
+"""
+Resets the database by calling the reset_db function.
+
+Returns:
+    dict: A dictionary containing the status and a success message if the reset is successful.
+
+Raises:
+    HTTPException: If an exception occurs during the reset process, raises an HTTPException with status code 500 and the error details.
+"""
 @router.post("/reset_database")
 def reset_database():
     try:
@@ -383,6 +599,16 @@ def reset_database():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+"""
+Deletes a team and its associated TeamMemberLink entries from the database.
+Args:
+    team_id (int): The ID of the team to delete.
+    session (Session, optional): Database session dependency.
+Raises:
+    HTTPException: If the team is not found (404) or an unexpected error occurs (500).
+Returns:
+    JSONResponse: Confirmation message upon successful deletion.
+"""
 @router.delete("/delete_team/{team_id}")
 def delete_team(team_id: int, session: Session = Depends(get_session)):
     try:
@@ -405,6 +631,22 @@ def delete_team(team_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 
 #Remove IR from Team
+"""
+Removes an IR (Individual Resource) from a specified team.
+
+Args:
+    team_id (int): The ID of the team from which the IR should be removed.
+    ir_id (str): The ID of the IR to be removed.
+    session (Session, optional): Database session dependency.
+
+Returns:
+    JSONResponse: A success message if the IR is removed.
+
+Raises:
+    HTTPException: 
+        - 404 if the IR is not found in the team.
+        - 500 for unexpected errors during the operation.
+"""
 @router.delete("/remove_ir_from_team/{team_id}/{ir_id}")
 def remove_ir_from_team(team_id: int, ir_id: str, session: Session = Depends(get_session)):
     try:
@@ -428,6 +670,18 @@ def remove_ir_from_team(team_id: int, ir_id: str, session: Session = Depends(get
     
 
 #Delete info detail for an IR
+
+"""
+Deletes an InfoDetail record by its ID.
+Args:
+    info_id (int): The ID of the InfoDetail to delete.
+    session (Session, optional): SQLAlchemy session dependency.
+Raises:
+    HTTPException: If the InfoDetail is not found (404).
+    HTTPException: If an unexpected error occurs during deletion (500).
+Returns:
+    JSONResponse: Success message indicating the InfoDetail has been deleted.
+"""
 @router.delete("/delete_info_detail/{info_id}")
 def delete_info_detail(info_id: int, session: Session = Depends(get_session)):  
     try:
