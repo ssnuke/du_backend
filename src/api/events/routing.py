@@ -218,12 +218,37 @@ Raises:
     HTTPException: If an unexpected error occurs during retrieval.
 """
 @router.get("/info_details/{ir_id}")
-def get_info_details(ir_id: str, session: Session = Depends(get_session)):
+def get_info_details(
+    ir_id: str,
+    from_date: str = None,
+    to_date: str = None,
+    session: Session = Depends(get_session)
+):
     try:
-        info_details = session.exec(
-            select(InfoDetailModel).where(InfoDetailModel.ir_id == ir_id)
-        ).all()
-        # Convert datetime to string for each info detail
+        # If no date filters, default to today's data
+        if not from_date and not to_date:
+            today = datetime.now().date()
+            query = select(InfoDetailModel).where(
+                InfoDetailModel.ir_id == ir_id,
+                InfoDetailModel.info_date >= today,
+                InfoDetailModel.info_date < today + timedelta(days=1)
+            )
+        else:
+            # Parse dates if provided
+            if from_date:
+                from_dt = datetime.fromisoformat(from_date).date()
+            else:
+                from_dt = datetime.min.date()
+            if to_date:
+                to_dt = datetime.fromisoformat(to_date).date()
+            else:
+                to_dt = datetime.max.date()
+            query = select(InfoDetailModel).where(
+                InfoDetailModel.ir_id == ir_id,
+                InfoDetailModel.info_date >= from_dt,
+                InfoDetailModel.info_date <= to_dt
+            )
+        info_details = session.exec(query).all()
         result = []
         for info in info_details:
             data = info.model_dump()
