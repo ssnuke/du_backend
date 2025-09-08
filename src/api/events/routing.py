@@ -12,6 +12,7 @@ from enum import Enum
 from api.db.session import reset_db
 from fastapi.responses import JSONResponse
 from datetime import datetime
+from typing import List
 
 
 router = APIRouter()
@@ -446,26 +447,29 @@ Returns:
     JSONResponse: A response containing a success message and the newly created info detail ID.
 """
 @router.post("/add_info_detail/{ir_id}")
-def add_info_detail(ir_id: str, payload: InfoDetailModel, session: Session = Depends(get_session)):
+def add_info_detail(ir_id: str, payload: List[InfoDetailModel], session: Session = Depends(get_session)):
     try:
         ir = session.get(IrModel, ir_id)
         if not ir:
             raise HTTPException(status_code=404, detail="IR not found")
         
-        info_detail = InfoDetailModel(
-            ir_id=ir_id,
-            info_date=payload.info_date,
-            response=payload.response,
-            comments=payload.comments,
-            info_name=payload.info_name
-        )
-        session.add(info_detail)
-        session.commit()
-        session.refresh(info_detail)
+        created_ids = []
+        for info in payload:
+            info_detail = InfoDetailModel(
+                ir_id=ir_id,
+                info_date=info.info_date,
+                response=info.response,
+                comments=info.comments,
+                info_name=info.info_name
+            )
+            session.add(info_detail)
+            session.commit()
+            session.refresh(info_detail)
+            created_ids.append(info_detail.id)
         
         return JSONResponse(
             status_code=201,
-            content={"message": "Info detail added", "info_id": info_detail.id}
+            content={"message": "Info details added", "info_ids": created_ids}
         )
     except Exception as e:
         session.rollback()
