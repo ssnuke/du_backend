@@ -10,7 +10,6 @@ from .models import IrIdModel
 from passlib.hash import bcrypt
 from enum import Enum
 from api.db.session import reset_db
-from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import List
 
@@ -195,10 +194,18 @@ def get_team_members(team_id: int, session: Session = Depends(get_session)):
         members = session.exec(
             select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
         ).all()
-        # Serialize each member to dict
+        # Map role name to role_num
+        role_map = {"LDC": 2, "LS": 3, "GC": 4, "IR": 5}
+        result = []
+        for member in members:
+            data = member.model_dump()
+            data["role_num"] = role_map.get(data["role"], None)
+            # Optionally, remove the role name if you only want role_num
+            # del data["role"]
+            result.append(data)
         return JSONResponse(
             status_code=200,
-            content=[member.model_dump() for member in members]
+            content=result
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{e}")
@@ -225,14 +232,9 @@ def get_info_details(
     session: Session = Depends(get_session)
 ):
     try:
-        # If no date filters, default to today's data
+        # If no date filters, return all info details for the IR
         if not from_date and not to_date:
-            today = datetime.now().date()
-            query = select(InfoDetailModel).where(
-                InfoDetailModel.ir_id == ir_id,
-                InfoDetailModel.info_date >= today,
-                InfoDetailModel.info_date < today + timedelta(days=1)
-            )
+            query = select(InfoDetailModel).where(InfoDetailModel.ir_id == ir_id)
         else:
             # Parse dates if provided
             if from_date:
@@ -431,6 +433,15 @@ Returns:
 @router.post("/add_ir_to_team")
 def add_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_session)):
     try:
+        # Map integer role to TeamRole enum
+        int_to_role = {2: TeamRole.LDC, 3: TeamRole.LS, 4: TeamRole.GC, 5: TeamRole.IR}
+        role_value = payload.role
+        if isinstance(role_value, int):
+            mapped_role = int_to_role.get(role_value, TeamRole.IR)
+        else:
+            # If already a string, convert to TeamRole (will raise ValueError if invalid)
+            mapped_role = TeamRole(role_value)
+
         existing = session.exec(
             select(TeamMemberLink).where(
                 TeamMemberLink.ir_id == payload.ir_id,
@@ -445,13 +456,13 @@ def add_ir_to_team(payload: AssignIrValidation, session: Session = Depends(get_s
         link = TeamMemberLink(
             ir_id=payload.ir_id,
             team_id=payload.team_id,
-            role=payload.role
+            role=mapped_role.value  # Store as string in DB
         )
         session.add(link)
         session.commit()
         return JSONResponse(
             status_code=201,
-            content={"message": f"{payload.role} assigned to team {payload.team_id}"}
+            content={"message": f"{mapped_role.value} assigned to team {payload.team_id}"}
         )
     except HTTPException:
         raise
