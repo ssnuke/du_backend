@@ -72,6 +72,10 @@ class TeamModel(SQLModel, table=True):
     name: str = Field(index=True, title="Team Name")
     # Relationships
     members: List["TeamMemberLink"] = Relationship(back_populates="team")
+    # Aggregated targets (computed, but you can store for reporting/caching)
+    weekly_info_target: Optional[int] = Field(default=0, title="Team Weekly Info Target")
+    weekly_plan_target: Optional[int] = Field(default=0, title="Team Weekly Plan Target")
+    # UV target is only for LDC/LS, not for team as a whole
 
 # Intermediate Table for IR-Team with Role
 class TeamMemberLink(SQLModel, table=True):
@@ -96,6 +100,12 @@ class IrModel(SQLModel, table=True):
     info_count: Optional[int] = Field(title="Info's Given", default=0)
     started_date: Optional[str] = Field(default_factory=current_ist_date_str, title="Started Date")
     name_list: Optional[int] = Field(title="Name List Count", default=0)
+
+    # Add these fields:
+    weekly_info_target: Optional[int] = Field(default=0, title="Weekly Info Target")
+    weekly_plan_target: Optional[int] = Field(default=0, title="Weekly Plan Target")
+    weekly_uv_target: Optional[int] = Field(default=None, title="Weekly UV Target")  # Only for LDC/LS
+    # UV target is not for IRs, so do not add here
 
     teams: List["TeamMemberLink"] = Relationship(back_populates="ir")
 

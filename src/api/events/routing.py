@@ -12,7 +12,8 @@ from enum import Enum
 from api.db.session import reset_db
 from datetime import datetime, timedelta
 from typing import List
-
+from fastapi import Body
+from sqlmodel import SQLModel
 
 router = APIRouter()
 
@@ -21,6 +22,19 @@ class TeamRole(str, Enum):
     LS = "LS"
     GC = "GC"
     IR = "IR"
+
+
+class TargetUpdatePayload(SQLModel):
+    # For individual IR
+    ir_id: str = None
+    weekly_info_target: int = None
+    weekly_plan_target: int = None
+    weekly_uv_target: int = None  # Only for LDC/LS
+
+    # For team
+    team_id: int = None
+    team_weekly_info_target: int = None
+    team_weekly_plan_target: int = None
 
 #GET Requests
 """
@@ -261,6 +275,99 @@ def get_info_details(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 #Get info details for an IR
+
+#Dashboard Targets
+@router.get("/targets_dashboard/{ir_id}")
+def get_targets_dashboard(ir_id: str, session: Session = Depends(get_session)):
+    """
+    Returns the weekly info, plan, and UV targets for the IR, their team, and LDC (if applicable).
+    Only LS, LDC, and above can set/update targets (handled in a separate endpoint).
+    """
+    try:
+        ir = session.exec(select(IrModel).where(IrModel.ir_id == ir_id)).first()
+        if not ir:
+            raise HTTPException(status_code=404, detail="IR not found")
+
+        # IR's own targets
+        ir_targets = {
+            "weekly_info_target": ir.weekly_info_target,
+            "weekly_plan_target": ir.weekly_plan_target,
+            "weekly_uv_target": ir.weekly_uv_target if ir.ir_access_level in [2, 3] else None,
+        }
+
+        # Find all teams this IR is part of
+        team_links = session.exec(
+            select(TeamMemberLink).where(TeamMemberLink.ir_id == ir_id)
+        ).all()
+        team_targets = []
+        for link in team_links:
+            team = session.get(TeamModel, link.team_id)
+            if not team:
+                continue
+            # Aggregate team targets from all IRs in the team
+            team_members = session.exec(
+                select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
+            ).all()
+            member_ids = [m.ir_id for m in team_members]
+            members = session.exec(
+                select(IrModel).where(IrModel.ir_id.in_(member_ids))
+            ).all()
+            team_info_target = sum(m.weekly_info_target or 0 for m in members)
+            team_plan_target = sum(m.weekly_plan_target or 0 for m in members)
+            team_uv_target = sum(m.weekly_uv_target or 0 for m in members if m.ir_access_level in [2, 3])
+            team_targets.append({
+                "team_id": team.id,
+                "team_name": team.name,
+                "weekly_info_target": team_info_target,
+                "weekly_plan_target": team_plan_target,
+                "weekly_uv_target": team_uv_target,
+            })
+
+        # If IR is LDC or LS, aggregate all teams they manage (where they are LDC/LS)
+        ldc_targets = []
+        if ir.ir_access_level in [2, 3]:
+            managed_links = session.exec(
+                select(TeamMemberLink).where(
+                    TeamMemberLink.ir_id == ir_id,
+                    TeamMemberLink.role.in_([TeamRole.LDC, TeamRole.LS])
+                )
+            ).all()
+            managed_team_ids = [l.team_id for l in managed_links]
+            for team_id in managed_team_ids:
+                team = session.get(TeamModel, team_id)
+                if not team:
+                    continue
+                # Aggregate team targets as above
+                team_members = session.exec(
+                    select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
+                ).all()
+                member_ids = [m.ir_id for m in team_members]
+                members = session.exec(
+                    select(IrModel).where(IrModel.ir_id.in_(member_ids))
+                ).all()
+                team_info_target = sum(m.weekly_info_target or 0 for m in members)
+                team_plan_target = sum(m.weekly_plan_target or 0 for m in members)
+                team_uv_target = sum(m.weekly_uv_target or 0 for m in members if m.ir_access_level in [2, 3])
+                ldc_targets.append({
+                    "team_id": team.id,
+                    "team_name": team.name,
+                    "weekly_info_target": team_info_target,
+                    "weekly_plan_target": team_plan_target,
+                    "weekly_uv_target": team_uv_target,
+                })
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ir_targets": ir_targets,
+                "team_targets": team_targets,
+                "ldc_targets": ldc_targets,
+                "access_level": ir.ir_access_level,
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+#Dashboard Targets
 #GET Requests
 
 
@@ -574,6 +681,58 @@ def update_info_detail(info_id: int, payload: InfoDetailModel, session: Session 
 
 #PUT Requests
 
+@router.put("/set_targets")
+def set_targets(
+    payload: TargetUpdatePayload = Body(...),
+    session: Session = Depends(get_session),
+    acting_ir_id: str = Body(..., embed=True)  # The IR making the request
+):
+    """
+    Allows LS, LDC, and above to set/update targets for IRs and Teams.
+    """
+    try:
+        # Check acting IR's access level
+        acting_ir = session.exec(select(IrModel).where(IrModel.ir_id == acting_ir_id)).first()
+        if not acting_ir or acting_ir.ir_access_level not in [1, 2, 3]:
+            raise HTTPException(status_code=403, detail="Not authorized to set targets")
+
+        updated = {}
+
+        # Update individual IR targets
+        if payload.ir_id:
+            ir = session.exec(select(IrModel).where(IrModel.ir_id == payload.ir_id)).first()
+            if not ir:
+                raise HTTPException(status_code=404, detail="IR not found")
+            if payload.weekly_info_target is not None:
+                ir.weekly_info_target = payload.weekly_info_target
+            if payload.weekly_plan_target is not None:
+                ir.weekly_plan_target = payload.weekly_plan_target
+            # Only allow UV target for LDC/LS
+            if payload.weekly_uv_target is not None and ir.ir_access_level in [2, 3]:
+                ir.weekly_uv_target = payload.weekly_uv_target
+            session.add(ir)
+            updated["ir_id"] = ir.ir_id
+
+        # Update team targets
+        if payload.team_id:
+            team = session.get(TeamModel, payload.team_id)
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if payload.team_weekly_info_target is not None:
+                team.weekly_info_target = payload.team_weekly_info_target
+            if payload.team_weekly_plan_target is not None:
+                team.weekly_plan_target = payload.team_weekly_plan_target
+            session.add(team)
+            updated["team_id"] = team.id
+
+        session.commit()
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Targets updated", "updated": updated}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 
 #UPDATE Requests
 
