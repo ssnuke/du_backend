@@ -1,7 +1,9 @@
 #! /bin/bash
 
+# Run the FastAPI project via the runtime script
+# when the container starts
 # Wait for the database to be ready
-# /wait-for-db.sh db_service
+/wait-for-db.sh db_service
 
 # Activate the virtual environment
 source /opt/venv/bin/activate
