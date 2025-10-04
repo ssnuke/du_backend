@@ -280,64 +280,35 @@ def get_info_details(
 @router.get("/targets_dashboard/{ir_id}")
 def get_targets_dashboard(ir_id: str, session: Session = Depends(get_session)):
     """
-    Returns the weekly info, plan, and UV targets for the IR, their team, and LDC (if applicable).
-    Only LS, LDC, and above can set/update targets (handled in a separate endpoint).
+    Returns personal and team progress/targets for the IR.
+    If IR is LS or LDC, returns both personal and teams progress/targets.
+    Otherwise, returns only personal progress/targets and teams as NA.
     """
     try:
         ir = session.exec(select(IrModel).where(IrModel.ir_id == ir_id)).first()
         if not ir:
             raise HTTPException(status_code=404, detail="IR not found")
 
-        # IR's own targets
-        ir_targets = {
+        # Personal progress/targets
+        personal = {
             "weekly_info_target": ir.weekly_info_target,
             "weekly_plan_target": ir.weekly_plan_target,
             "weekly_uv_target": ir.weekly_uv_target if ir.ir_access_level in [2, 3] else None,
+            "info_count": ir.info_count,
+            "plan_count": ir.plan_count,
+            "uv_count": ir.weekly_uv_target if ir.ir_access_level in [2, 3] else None  # You may want to replace with actual progress
         }
 
-        # Find all teams this IR is part of
-        team_links = session.exec(
-            select(TeamMemberLink).where(TeamMemberLink.ir_id == ir_id)
-        ).all()
-        team_targets = []
-        for link in team_links:
-            team = session.get(TeamModel, link.team_id)
-            if not team:
-                continue
-            # Aggregate team targets from all IRs in the team
-            team_members = session.exec(
-                select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
-            ).all()
-            member_ids = [m.ir_id for m in team_members]
-            members = session.exec(
-                select(IrModel).where(IrModel.ir_id.in_(member_ids))
-            ).all()
-            team_info_target = sum(m.weekly_info_target or 0 for m in members)
-            team_plan_target = sum(m.weekly_plan_target or 0 for m in members)
-            team_uv_target = sum(m.weekly_uv_target or 0 for m in members if m.ir_access_level in [2, 3])
-            team_targets.append({
-                "team_id": team.id,
-                "team_name": team.name,
-                "weekly_info_target": team_info_target,
-                "weekly_plan_target": team_plan_target,
-                "weekly_uv_target": team_uv_target,
-            })
-
-        # If IR is LDC or LS, aggregate all teams they manage (where they are LDC/LS)
-        ldc_targets = []
+        # If LS or LDC, show teams progress/targets
         if ir.ir_access_level in [2, 3]:
-            managed_links = session.exec(
-                select(TeamMemberLink).where(
-                    TeamMemberLink.ir_id == ir_id,
-                    TeamMemberLink.role.in_([TeamRole.LDC, TeamRole.LS])
-                )
+            team_links = session.exec(
+                select(TeamMemberLink).where(TeamMemberLink.ir_id == ir_id)
             ).all()
-            managed_team_ids = [l.team_id for l in managed_links]
-            for team_id in managed_team_ids:
-                team = session.get(TeamModel, team_id)
+            teams_progress = []
+            for link in team_links:
+                team = session.get(TeamModel, link.team_id)
                 if not team:
                     continue
-                # Aggregate team targets as above
                 team_members = session.exec(
                     select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
                 ).all()
@@ -345,26 +316,35 @@ def get_targets_dashboard(ir_id: str, session: Session = Depends(get_session)):
                 members = session.exec(
                     select(IrModel).where(IrModel.ir_id.in_(member_ids))
                 ).all()
-                team_info_target = sum(m.weekly_info_target or 0 for m in members)
-                team_plan_target = sum(m.weekly_plan_target or 0 for m in members)
-                team_uv_target = sum(m.weekly_uv_target or 0 for m in members if m.ir_access_level in [2, 3])
-                ldc_targets.append({
+                team_info_progress = sum(m.info_count or 0 for m in members)
+                team_plan_progress = sum(m.plan_count or 0 for m in members)
+                team_uv_progress = sum(m.weekly_uv_target or 0 for m in members if m.ir_access_level in [2, 3])
+                teams_progress.append({
                     "team_id": team.id,
                     "team_name": team.name,
-                    "weekly_info_target": team_info_target,
-                    "weekly_plan_target": team_plan_target,
-                    "weekly_uv_target": team_uv_target,
+                    "weekly_info_target": team.weekly_info_target,
+                    "weekly_plan_target": team.weekly_plan_target,
+                    "weekly_uv_target": team.weekly_uv_target if hasattr(team, "weekly_uv_target") else None,
+                    "info_progress": team_info_progress,
+                    "plan_progress": team_plan_progress,
+                    "uv_progress": team_uv_progress
                 })
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "ir_targets": ir_targets,
-                "team_targets": team_targets,
-                "ldc_targets": ldc_targets,
-                "access_level": ir.ir_access_level,
-            }
-        )
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "personal": personal,
+                    "teams": teams_progress
+                }
+            )
+        else:
+            # Not LS/LDC, teams is NA
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "personal": personal,
+                    "teams": "NA"
+                }
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 #Dashboard Targets
@@ -816,14 +796,17 @@ def delete_team(team_id: int, session: Session = Depends(get_session)):
             raise HTTPException(status_code=404, detail="Team not found")
         
         # Delete associated TeamMemberLink entries
-        session.exec(
+        links = session.exec(
             select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
         ).all()
+        for link in links:
+            session.delete(link)
+        
         session.delete(team)
         session.commit()
         return JSONResponse(
             status_code=200,
-            content={"message": f"Team with ID {team_id} has been deleted"}
+            content={"message": f"Team with ID {team_id} and its members have been deleted"}
         )
     except Exception as e:
         session.rollback()
