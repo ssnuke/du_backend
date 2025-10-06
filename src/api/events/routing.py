@@ -599,6 +599,60 @@ def add_info_detail(ir_id: str, payload: List[InfoDetailModel], session: Session
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 #Add Info Detail for an IR
 
+@router.post("/set_targets")
+def set_targets(
+    payload: TargetUpdatePayload = Body(...),
+    session: Session = Depends(get_session),
+    acting_ir_id: str = Body(..., embed=True)  # The IR making the request
+):
+    """
+    Allows LS, LDC, and above to set/update targets for IRs and Teams.
+    """
+    try:
+        # Check acting IR's access level
+        acting_ir = session.exec(select(IrModel).where(IrModel.ir_id == acting_ir_id)).first()
+        if not acting_ir or acting_ir.ir_access_level not in [1, 2, 3]:
+            raise HTTPException(status_code=403, detail="Not authorized to set targets")
+
+        updated = {}
+
+        # Update individual IR targets
+        if payload.ir_id:
+            ir = session.exec(select(IrModel).where(IrModel.ir_id == payload.ir_id)).first()
+            if not ir:
+                raise HTTPException(status_code=404, detail="IR not found")
+            if payload.weekly_info_target is not None:
+                ir.weekly_info_target = payload.weekly_info_target
+            if payload.weekly_plan_target is not None:
+                ir.weekly_plan_target = payload.weekly_plan_target
+            # Only allow UV target for LDC/LS
+            if payload.weekly_uv_target is not None and ir.ir_access_level in [2, 3]:
+                ir.weekly_uv_target = payload.weekly_uv_target
+            session.add(ir)
+            updated["ir_id"] = ir.ir_id
+
+        # Update team targets
+        if payload.team_id:
+            team = session.get(TeamModel, payload.team_id)
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if payload.team_weekly_info_target is not None:
+                team.weekly_info_target = payload.team_weekly_info_target
+            if payload.team_weekly_plan_target is not None:
+                team.weekly_plan_target = payload.team_weekly_plan_target
+            session.add(team)
+            updated["team_id"] = team.id
+
+        session.commit()
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Targets updated", "updated": updated}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+
+
 #POST Requests
 
 #PUT Requests
@@ -660,7 +714,6 @@ def update_info_detail(info_id: int, payload: InfoDetailModel, session: Session 
 #Update info details for an IR
 
 #PUT Requests
-
 @router.put("/set_targets")
 def set_targets(
     payload: TargetUpdatePayload = Body(...),
