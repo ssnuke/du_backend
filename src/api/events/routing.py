@@ -7,8 +7,7 @@ from pydantic import ValidationError
 from api.db.session import get_session
 from sqlmodel import Session, select
 from .models import IrIdModel
-# from passlib.hash import bcrypt
-from passlib.context import CryptContext
+from passlib.hash import bcrypt
 from enum import Enum
 from api.db.session import reset_db
 from datetime import datetime, timedelta
@@ -17,7 +16,6 @@ from fastapi import Body
 from sqlmodel import SQLModel
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
 class TeamRole(str, Enum):
     LDC = "LDC"
@@ -429,8 +427,7 @@ def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
         raise HTTPException(status_code=404,detail="IR ID Not Found!")
     else:
         data = payload.model_dump()
-        # data["ir_password"] = bcrypt.hash(data["ir_password"])
-        data["ir_password"] = pwd_context.hash(data["ir_password"])
+        data["ir_password"] = bcrypt.hash(data["ir_password"])
         try:
             obj = IrModel.model_validate(data)
             session.add(obj)
@@ -471,11 +468,8 @@ def ir_login(payload:IrLoginValidation,session:Session=Depends(get_session)):
         if not result:
             raise HTTPException(status_code=404, detail="IR ID Not Found!")
         
-        if not pwd_context.verify(payload.ir_password, result.ir_password):
+        if not bcrypt.verify(payload.ir_password, result.ir_password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # if not bcrypt.verify(payload.ir_password, result.ir_password):
-        #     raise HTTPException(status_code=401, detail="Invalid credentials")
 
         ir_data = result.model_dump(exclude={"ir_password"})
         return JSONResponse(status_code=201,content={"message":"Login Successful", "ir":ir_data})
