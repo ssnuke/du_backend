@@ -427,6 +427,9 @@ def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
         raise HTTPException(status_code=404,detail="IR ID Not Found!")
     else:
         data = payload.model_dump()
+        print("Raw password:", payload.ir_password)
+        print("Password byte length:", len(payload.ir_password.encode("utf-8")))
+        
         pw_bytes = data["ir_password"].encode("utf-8")
         if len(pw_bytes) > 72:
             pw_bytes = pw_bytes[:72]
