@@ -52,7 +52,6 @@ requests
 psycopg[binary]
 python-decouple
 pytz
-passlib[bcrypt]
 sqlalchemy
 requests
 psycopg[binary]
@@ -61,3 +60,5 @@ python-decouple
 pytz
 passlib[bcrypt]
 fastapi
+passlib
+bcrypt==4.0.1
