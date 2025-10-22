@@ -61,4 +61,4 @@ pytz
 passlib[bcrypt]
 fastapi
 passlib
-bcrypt==4.0.1
+bcrypt
