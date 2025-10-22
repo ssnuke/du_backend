@@ -34,7 +34,7 @@ class InfoResponse(str, Enum):
     C = "C"
 
 IST = pytz.timezone("Asia/Kolkata")
-PasswordStr = Annotated[str, Field(min_length=8, max_length=64, title="IR Password")]
+PasswordStr = Annotated[str, Field(min_length=8, max_length=256, title="IR Password")]
 
 #Helper Functions
 def current_ist_date_str() -> str:
