@@ -8,6 +8,7 @@ from api.db.session import get_session
 from sqlmodel import Session, select
 from .models import IrIdModel
 from passlib.hash import bcrypt
+from passlib.hash import argon2  # ✅ Strong, modern password hashing
 from enum import Enum
 from api.db.session import reset_db
 from datetime import datetime, timedelta
@@ -414,38 +415,80 @@ Raises:
 Returns:
     JSONResponse: Success message and registered IR ID on successful registration.
 """
+# @router.post("/register_new_ir")
+# def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
+#     '''
+#     1. Check if the IR ID exists in the IRIdModel
+#     2. If the yes, then go ahead and register the IR with all the details
+#     3. If no then, raise error IR ID not Found! 
+#     '''
+#     query = select(IrIdModel).where(IrIdModel.ir_id == payload.ir_id)
+#     result = session.exec(query).first()
+#     if not result:
+#         raise HTTPException(status_code=404,detail="IR ID Not Found!")
+#     else:
+#         data = payload.model_dump()
+#         data["ir_password"] = bcrypt.hash(data["ir_password"])
+#         try:
+#             obj = IrModel.model_validate(data)
+#             session.add(obj)
+#             session.commit()
+#             session.refresh(obj)
+#             return JSONResponse(status_code=201,content={"message": "IR registered successfully", "ir_id": obj.ir_id})
+#         except IntegrityError as e:
+#                 session.rollback()
+#                 raise HTTPException(
+#                     status_code=422,
+#                     detail={"error": "Database integrity error", "details": str(e)}
+#                 )
+#         except Exception as e:
+#             session.rollback()
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail={"error": "Unexpected error", "details": str(e)}
+#             )
+
+
 @router.post("/register_new_ir")
-def register_new_ir(payload: IrModel, session:Session=Depends(get_session)):
-    '''
+def register_new_ir(payload: IrModel, session: Session = Depends(get_session)):
+    """
     1. Check if the IR ID exists in the IRIdModel
-    2. If the yes, then go ahead and register the IR with all the details
-    3. If no then, raise error IR ID not Found! 
-    '''
+    2. If yes, then register the IR with all the details
+    3. If no, raise error "IR ID not Found!"
+    """
     query = select(IrIdModel).where(IrIdModel.ir_id == payload.ir_id)
     result = session.exec(query).first()
+
     if not result:
-        raise HTTPException(status_code=404,detail="IR ID Not Found!")
-    else:
-        data = payload.model_dump()
-        data["ir_password"] = bcrypt.hash(data["ir_password"])
-        try:
-            obj = IrModel.model_validate(data)
-            session.add(obj)
-            session.commit()
-            session.refresh(obj)
-            return JSONResponse(status_code=201,content={"message": "IR registered successfully", "ir_id": obj.ir_id})
-        except IntegrityError as e:
-                session.rollback()
-                raise HTTPException(
-                    status_code=422,
-                    detail={"error": "Database integrity error", "details": str(e)}
-                )
-        except Exception as e:
-            session.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail={"error": "Unexpected error", "details": str(e)}
-            )
+        raise HTTPException(status_code=404, detail="IR ID Not Found!")
+    
+    data = payload.model_dump()
+    try:
+        # ✅ Use Argon2 for strong, modern password hashing (no 72-byte limit)
+        data["ir_password"] = argon2.hash(data["ir_password"])
+
+        obj = IrModel.model_validate(data)
+        session.add(obj)
+        session.commit()
+        session.refresh(obj)
+
+        return JSONResponse(
+            status_code=201,
+            content={"message": "IR registered successfully", "ir_id": obj.ir_id}
+        )
+
+    except IntegrityError as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Database integrity error", "details": str(e)}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "Unexpected error", "details": str(e)}
+        )
 
 
 """
@@ -468,7 +511,9 @@ def ir_login(payload:IrLoginValidation,session:Session=Depends(get_session)):
         if not result:
             raise HTTPException(status_code=404, detail="IR ID Not Found!")
         
-        if not bcrypt.verify(payload.ir_password, result.ir_password):
+        # if not bcrypt.verify(payload.ir_password, result.ir_password):
+        #     raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not argon2.verify(payload.ir_password, result.ir_password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         ir_data = result.model_dump(exclude={"ir_password"})
