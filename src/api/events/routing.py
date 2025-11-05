@@ -349,6 +349,35 @@ def get_targets_dashboard(ir_id: str, session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 #Dashboard Targets
+
+
+#Get Team by IR ID
+@router.get("/teams_by_ir/{ir_id}")
+def get_teams_by_ir(ir_id: str, session: Session = Depends(get_session)):
+    """
+    Fetches all teams associated with a given IR ID.
+
+    Args:
+        ir_id (str): The ID of the IR to filter teams by.
+        session (Session, optional): Database session dependency.
+
+    Returns:
+        JSONResponse: A JSON response containing a list of teams associated with the specified IR ID.
+
+    Raises:
+        HTTPException: If an unexpected error occurs during database query or processing.
+    """
+    try:
+        teams = session.exec(
+            select(TeamModel).join(TeamMemberLink).where(
+                TeamMemberLink.ir_id == ir_id
+            )
+        ).all()
+        result = [team.model_dump() for team in teams]
+        return JSONResponse(status_code=200, content=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
+
 #GET Requests
 
 
