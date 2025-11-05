@@ -203,21 +203,63 @@ Returns:
 Raises:
     HTTPException: If an error occurs during retrieval, returns status code 500 with error details.
 """
+# @router.get("/team_members/{team_id}")
+# def get_team_members(team_id: int, session: Session = Depends(get_session)):
+#     try:
+#         members = session.exec(
+#             select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
+#         ).all()
+#         # Map role name to role_num
+#         role_map = {"LDC": 2, "LS": 3, "GC": 4, "IR": 5}
+#         result = []
+#         for member in members:
+#             data = member.model_dump()
+#             data["role_num"] = role_map.get(data["role"], None)
+#             # Optionally, remove the role name if you only want role_num
+#             # del data["role"]
+#             result.append(data)
+#         return JSONResponse(
+#             status_code=200,
+#             content=result
+#         )
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"{e}")
+
 @router.get("/team_members/{team_id}")
 def get_team_members(team_id: int, session: Session = Depends(get_session)):
     try:
         members = session.exec(
             select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)
         ).all()
+        
         # Map role name to role_num
         role_map = {"LDC": 2, "LS": 3, "GC": 4, "IR": 5}
         result = []
+        
         for member in members:
+            # Get member details including targets from IrModel
+            ir_details = session.exec(
+                select(IrModel).where(IrModel.ir_id == member.ir_id)
+            ).first()
+            
+            if not ir_details:
+                continue
+                
             data = member.model_dump()
             data["role_num"] = role_map.get(data["role"], None)
-            # Optionally, remove the role name if you only want role_num
-            # del data["role"]
+            
+            # Add targets and progress
+            data.update({
+                "weekly_info_target": ir_details.weekly_info_target,
+                "weekly_plan_target": ir_details.weekly_plan_target,
+                "info_count": ir_details.info_count,
+                "plan_count": ir_details.plan_count,
+                "weekly_uv_target": ir_details.weekly_uv_target if ir_details.ir_access_level in [2, 3] else None,
+                "uv_count": ir_details.weekly_uv_target if ir_details.ir_access_level in [2, 3] else None
+            })
+            
             result.append(data)
+            
         return JSONResponse(
             status_code=200,
             content=result
