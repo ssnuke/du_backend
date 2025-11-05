@@ -162,7 +162,6 @@ def get_all_teams(session: Session = Depends(get_session)):
                 "weekly_info_achieved": total_info_count,
                 "weekly_plan_target": team.weekly_plan_target,
                 "weekly_plan_achieved": total_plan_count,
-                "weekly_uv_target": team.weekly_uv_target,
                 "weekly_uv_achieved": total_uv_count
             })
             
