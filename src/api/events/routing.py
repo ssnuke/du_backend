@@ -116,14 +116,61 @@ Returns:
 Raises:
     HTTPException: If an unexpected error occurs during database access, returns a 500 status code with error details.
 """    
+# @router.get("/teams")
+# def get_all_teams(session: Session = Depends(get_session)):
+#     try:
+#         teams = session.exec(select(TeamModel)).all()
+#         result = [team.model_dump() for team in teams]
+#         return JSONResponse(status_code=200, content=result)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
+
 @router.get("/teams")
 def get_all_teams(session: Session = Depends(get_session)):
     try:
+        # Get all teams
         teams = session.exec(select(TeamModel)).all()
-        result = [team.model_dump() for team in teams]
+        result = []
+        
+        for team in teams:
+            team_data = team.model_dump()
+            
+            # Get all team members
+            members = session.exec(
+                select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
+            ).all()
+            
+            # Initialize counters
+            total_info_count = 0
+            total_plan_count = 0
+            total_uv_count = 0
+            
+            # Sum up all members' counts
+            for member in members:
+                ir = session.exec(
+                    select(IrModel).where(IrModel.ir_id == member.ir_id)
+                ).first()
+                if ir:
+                    total_info_count += ir.info_count or 0
+                    total_plan_count += ir.plan_count or 0
+                    if ir.ir_access_level in [2, 3]:  # LDC or LS
+                        total_uv_count += ir.weekly_uv_target or 0  # Using UV target as achieved for now
+            
+            # Add targets and achievements to team data
+            team_data.update({
+                "weekly_info_target": team.weekly_info_target,
+                "weekly_info_achieved": total_info_count,
+                "weekly_plan_target": team.weekly_plan_target,
+                "weekly_plan_achieved": total_plan_count,
+                "weekly_uv_target": team.weekly_uv_target,
+                "weekly_uv_achieved": total_uv_count
+            })
+            
+            result.append(team_data)
+            
         return JSONResponse(status_code=200, content=result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected Error Occurred {str(e)}")
 
 
 """
