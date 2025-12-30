@@ -256,7 +256,7 @@ def get_ldcs(session: Session = Depends(get_session)):
                 "total_plan": ldc_plan_total,
                 "teams": teams_list
             })
-        return JSONResponse(status_code=200, content={"ldcs": result, "totals": {"info": overall_info, "plan": overall_plan, "dr": overall_dr}})
+        return JSONResponse(status_code=200, content={"ldcs": result, "totals": {"info": overall_info, "plan": overall_plan}})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
