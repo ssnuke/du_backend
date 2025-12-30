@@ -202,63 +202,13 @@ def get_ldcs(session: Session = Depends(get_session)):
             select(IrModel).where(IrModel.ir_id.in_(unique_ir_ids))
         ).all()
 
-        overall_info = 0
-        overall_plan = 0
-
-        result = []
-        for ldc in ldcs:
-            # Teams where this IR is LDC
-            teams = session.exec(
-                select(TeamModel).join(TeamMemberLink).where(
-                    TeamMemberLink.ir_id == ldc.ir_id,
-                    TeamMemberLink.role == TeamRole.LDC
-                )
-            ).all()
-
-            ldc_info_total = 0
-            ldc_plan_total = 0
-            teams_list = []
-
-            for team in teams:
-                # Get members of the team
-                team_links = session.exec(
-                    select(TeamMemberLink).where(TeamMemberLink.team_id == team.id)
-                ).all()
-                member_ids = [tl.ir_id for tl in team_links]
-
-                members = []
-                if member_ids:
-                    members = session.exec(
-                        select(IrModel).where(IrModel.ir_id.in_(member_ids))
-                    ).all()
-
-                team_info = sum((m.info_count or 0) for m in members)
-                team_plan = sum((m.plan_count or 0) for m in members)
-
-                teams_list.append({
-                    "team_id": team.id,
-                    "team_name": team.name,
-                    "info": team_info,
-                    "plan": team_plan,
-                })
-
-                ldc_info_total += team_info
-                ldc_plan_total += team_plan
-
-            overall_info += ldc_info_total
-            overall_plan += ldc_plan_total
-
-            result.append({
-                "ir_id": ldc.ir_id,
-                "ir_name": ldc.ir_name,
-                "id": ldc.ir_id,
-                "total_info": ldc_info_total,
-                "total_plan": ldc_plan_total,
-                "teams": teams_list
-            })
-        return JSONResponse(status_code=200, content={"ldcs": result, "totals": {"info": overall_info, "plan": overall_plan}})
+        # Step 4: Serialize result
+        result = [{"ir_id": ldc.ir_id, "ir_name": ldc.ir_name, "id":ldc.ir_id} for ldc in ldcs]
+        return JSONResponse(status_code=200,content=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
+
+       
 
 """
 Fetches all teams associated with a given LDC (Local District Coordinator) ID.
