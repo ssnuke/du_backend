@@ -1,19 +1,26 @@
-#! /bin/bash
+#!/bin/bash
+set -e
 
-# Run the FastAPI project via the runtime script
-# when the container starts
-# Wait for the database to be ready
-# /wait-for-db.sh db_service
+echo "🚀 Starting DU Backend (DEBUG MODE)"
 
-# Activate the virtual environment
 source /opt/venv/bin/activate
-
-# Navigate to the project directory
+export PYTHONPATH=/code
 cd /code
 
-# Set host/port with fallback
-RUN_PORT=${PORT:-8000}
-RUN_HOST=${HOST:-0.0.0.0}
+echo "📁 Current directory:"
+pwd
 
-# Start Gunicorn with Uvicorn workers
-gunicorn -k uvicorn.workers.UvicornWorker -b $RUN_HOST:$RUN_PORT main:app
+echo "📂 Listing /code:"
+ls -la /code
+
+echo "📂 Listing /code/alembic:"
+ls -la /code/alembic || true
+
+echo "📄 Showing alembic.ini:"
+cat /code/alembic.ini || true
+
+echo "🗄️ Running database migrations..."
+alembic -c /code/alembic.ini upgrade head
+
+echo "🚀 Starting application..."
+gunicorn -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8002} main:app

@@ -42,36 +42,14 @@ def current_ist_date_str() -> str:
     return now_ist.strftime("%d-%m-%Y")
 #Helper Functions
 
-#Validation Schemas
-class IrIdValidation(SQLModel):
-    ir_id : str
-
-class GetIrSchema(SQLModel):
-    ir_id:str
-
-class GetListIrSchema(SQLModel):
-    results: List[GetIrSchema]
-
-class IrLoginValidation(SQLModel):
-    ir_id:str
-    ir_password:str 
-
-class CreateTeamValidation(SQLModel):
-    name:str   
-
-class AssignIrValidation(SQLModel):
-    ir_id:str
-    team_id:int
-    role:TeamRole
-#Validation Schemas
-
 #SQL TABLES
 class IrIdModel(SQLModel, table=True):
+    __tablename__ = "ir_id"
     ir_id: str = Field(primary_key=True, max_length=18)
-
 
 # Team Model
 class TeamModel(SQLModel, table=True):
+    __tablename__ = "team"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, title="Team Name")
     # Relationships
@@ -83,16 +61,18 @@ class TeamModel(SQLModel, table=True):
 
 # Intermediate Table for IR-Team with Role
 class TeamMemberLink(SQLModel, table=True):
+    __tablename__ = "team_member"
     id: Optional[int] = Field(default=None, primary_key=True)
-    team_id: int = Field(foreign_key="teammodel.id")
-    ir_id: str = Field(foreign_key="irmodel.ir_id")
+    team_id: int = Field(foreign_key="team.id")
+    ir_id: str = Field(foreign_key="ir.ir_id")
     role: TeamRole = Field(title="Role in Team")
-    # Relationships
+
     team: Optional["TeamModel"] = Relationship(back_populates="members")
     ir: Optional["IrModel"] = Relationship(back_populates="teams")
 
 # Update your existing IR model with reverse relationship
 class IrModel(SQLModel, table=True):
+    __tablename__ = "ir"
     ir_id: str = Field(primary_key=True, max_length=18, title="IR ID")
     ir_name: str = Field(max_length=45, title="IR Name")
     ir_email: EmailStr = Field(title="IR Email")
@@ -121,8 +101,9 @@ class IrModel(SQLModel, table=True):
         return v
     
 class InfoDetailModel(SQLModel, table=True):
+    __tablename__ = "info_detail"
     id: Optional[int] = Field(default=None, primary_key=True)
-    ir_id: str = Field(foreign_key="irmodel.ir_id")
+    ir_id: str = Field(foreign_key="ir.ir_id")
     info_date: datetime = Field(default_factory=lambda: datetime.now(IST), title="Info Date")
     response: InfoResponse = Field(title="Response Option")
     comments: Optional[str] = Field(title="Comments")

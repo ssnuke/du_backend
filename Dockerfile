@@ -1,68 +1,39 @@
-# 1 - Download & Install Python 3
 FROM python:3.13.2-slim-bullseye
 
-# setup linux os packages
-
-# 2 - Create Virtual Environment
-# 3 - Install Python Packages - `pip install <package-name>`
-# 4 - FastAPI Hello World
-
-# Create a virtual environment
+# Create virtual environment
 RUN python -m venv /opt/venv
-
-# Set the virtual environment as the current location
 ENV PATH=/opt/venv/bin:$PATH
 
-# Upgrade pip
 RUN pip install --upgrade pip
 
-# Set Python-related environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install os dependencies for our mini vm
+# OS dependencies
 RUN apt-get update && apt-get install -y \
-    # for postgres
     libpq-dev \
-    # for Pillow
     libjpeg-dev \
-    # for CairoSVG
     libcairo2 \
-    # other
     gcc \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Create the mini vm's code directory
-RUN mkdir -p /code
-
-# Set the working directory to that same code directory
+# App directory
 WORKDIR /code
+ENV PYTHONPATH=/code
 
-# Copy the requirements file into the container
+# Install Python deps
 COPY requirements.txt /tmp/requirements.txt
-
-# copy the project code into the container's working directory
-COPY ./src /code
-
-# Install the Python project requirements
 RUN pip install -r /tmp/requirements.txt
 
-# COPY wait-for-db.sh /wait-for-db.sh
-# RUN chmod +x /wait-for-db.sh
+COPY ./src /code
+# COPY ./src/main.py /code/main.py
+# COPY ./src/alembic /code/alembic
+# COPY ./src/alembic.ini /code/alembic.ini
 
-RUN apt-get update && apt-get install -y postgresql-client
 
-# make the bash script executable
+# Startup script
 COPY ./boot/docker-run.sh /opt/run.sh
 RUN chmod +x /opt/run.sh
 
-
-# Clean up apt cache to reduce image size
-RUN apt-get remove --purge -y \
-    && apt-get autoremove -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Run the FastAPI project via the runtime script
-# when the container starts
 CMD ["/opt/run.sh"]

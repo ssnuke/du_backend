@@ -11,3 +11,14 @@ becomes
 docker compose up --watch
 docker compose down or docker compose down -v (to remove volumes)
 docker compose run app /bin/bash or docker compose run app python
+
+To make changes in the models run this commands
+
+# run this locally
+alembic revision --autogenerate -m "comment changes"
+
+# like makemigrations
+alembic revision --autogenerate
+
+# like migrate
+alembic upgrade head

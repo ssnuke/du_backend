@@ -1,7 +1,8 @@
 import os 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from .models import GetIrSchema,GetListIrSchema,IrIdValidation,IrModel,IrLoginValidation,TeamModel,TeamMemberLink,CreateTeamValidation,AssignIrValidation,InfoDetailModel
+from .models import IrModel,TeamModel,TeamMemberLink,InfoDetailModel,IrIdModel
+from .schemas import IrIdValidation,GetIrSchema,GetListIrSchema,IrLoginValidation,CreateTeamValidation,AssignIrValidation
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pydantic import ValidationError
 from api.db.session import get_session
@@ -10,7 +11,7 @@ from .models import IrIdModel
 from passlib.hash import bcrypt
 from passlib.hash import argon2  # ✅ Strong, modern password hashing
 from enum import Enum
-from api.db.session import reset_db
+
 from datetime import datetime, timedelta
 from typing import List
 from fastapi import Body
@@ -987,13 +988,13 @@ Returns:
 Raises:
     HTTPException: If an exception occurs during the reset process, raises an HTTPException with status code 500 and the error details.
 """
-@router.post("/reset_database")
-def reset_database():
-    try:
-        reset_db()
-        return {"status": "success", "message": "Database has been reset successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @router.post("/reset_database")
+# def reset_database():
+#     try:
+#         reset_db()
+#         return {"status": "success", "message": "Database has been reset successfully."}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 """
 Deletes a team and its associated TeamMemberLink entries from the database.
