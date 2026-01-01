@@ -1,7 +1,7 @@
 import os 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from .models import GetIrSchema,GetListIrSchema,IrIdValidation,IrModel,IrLoginValidation,TeamModel,TeamMemberLink,CreateTeamValidation,AssignIrValidation,InfoDetailModel
+from .models import GetIrSchema,GetListIrSchema,IrIdValidation,IrModel,IrLoginValidation,TeamModel,TeamMemberLink,CreateTeamValidation,AssignIrValidation,InfoDetailModel,TeamWeekModel,PlanDetailModel,get_current_week_start,IST
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pydantic import ValidationError
 from api.db.session import get_session
@@ -468,6 +468,27 @@ def get_teams_by_ir(ir_id: str, session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected Error Occured {str(e)}")
 
+@router.get("/team_info_total/{team_id}")
+def team_info_total(team_id: int, session: Session = Depends(get_session)):
+    team = session.get(TeamModel, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # stored running weekly counter
+    running = team.weekly_info_done or 0
+
+    # recomputed from members
+    links = session.exec(select(TeamMemberLink).where(TeamMemberLink.team_id == team_id)).all()
+    ids = [l.ir_id for l in links]
+    members = session.exec(select(IrModel).where(IrModel.ir_id.in_(ids))).all() if ids else []
+    recomputed = sum(m.info_count or 0 for m in members)
+
+    return JSONResponse(status_code=200, content={
+        "team_id": team_id,
+        "running_weekly_info_done": running,
+        "recomputed_members_info_total": recomputed
+    })
+
 #GET Requests
 
 
@@ -750,9 +771,49 @@ def add_info_detail(ir_id: str, payload: List[InfoDetailModel], session: Session
                 info_name=info.info_name
             )
             session.add(info_detail)
+            # Persist the info detail
             session.commit()
             session.refresh(info_detail)
             created_ids.append(info_detail.id)
+
+            # 1) Update IR's info_count
+            ir.info_count = (ir.info_count or 0) + 1
+            session.add(ir)
+
+            # 2) Update each team the IR belongs to: archive/reset week if needed then increment
+            links = session.exec(select(TeamMemberLink).where(TeamMemberLink.ir_id == ir_id)).all()
+            current_week_start = get_current_week_start()
+            for link in links:
+                team = session.get(TeamModel, link.team_id)
+                if not team:
+                    continue
+
+                # If no TeamWeek exists for this team and current_week_start, archive previous totals
+                existing_week = session.exec(
+                    select(TeamWeekModel).where(
+                        TeamWeekModel.team_id == team.id,
+                        TeamWeekModel.week_start == current_week_start
+                    )
+                ).first()
+                if not existing_week:
+                    # Archive current weekly totals into TeamWeek
+                    tw = TeamWeekModel(
+                        team_id=team.id,
+                        week_start=current_week_start,
+                        weekly_info_done=team.weekly_info_done or 0,
+                        weekly_plan_done=team.weekly_plan_done or 0
+                    )
+                    session.add(tw)
+                    # Reset team's running weekly counters for the new week
+                    team.weekly_info_done = 0
+                    team.weekly_plan_done = 0
+
+                # Increment the team's weekly_info_done for this new info
+                team.weekly_info_done = (team.weekly_info_done or 0) + 1
+                session.add(team)
+
+            # Persist all updates for this info entry
+            session.commit()
         
         return JSONResponse(
             status_code=201,
@@ -762,6 +823,71 @@ def add_info_detail(ir_id: str, payload: List[InfoDetailModel], session: Session
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
 #Add Info Detail for an IR
+
+
+@router.post("/add_plan_detail/{ir_id}")
+def add_plan_detail(ir_id: str, payload: List[PlanDetailModel], session: Session = Depends(get_session)):
+    try:
+        ir = session.get(IrModel, ir_id)
+        if not ir:
+            raise HTTPException(status_code=404, detail="IR not found")
+
+        created_ids = []
+        for plan in payload:
+            plan_entry = PlanDetailModel(
+                ir_id=ir_id,
+                plan_date=plan.plan_date,
+                plan_name=plan.plan_name,
+                comments=plan.comments
+            )
+            session.add(plan_entry)
+            session.commit()
+            session.refresh(plan_entry)
+            created_ids.append(plan_entry.id)
+
+            # 1) Update IR's plan_count
+            ir.plan_count = (ir.plan_count or 0) + 1
+            session.add(ir)
+
+            # 2) Update each team the IR belongs to: archive/reset week if needed then increment plan counters
+            links = session.exec(select(TeamMemberLink).where(TeamMemberLink.ir_id == ir_id)).all()
+            current_week_start = get_current_week_start()
+            for link in links:
+                team = session.get(TeamModel, link.team_id)
+                if not team:
+                    continue
+
+                existing_week = session.exec(
+                    select(TeamWeekModel).where(
+                        TeamWeekModel.team_id == team.id,
+                        TeamWeekModel.week_start == current_week_start
+                    )
+                ).first()
+                if not existing_week:
+                    tw = TeamWeekModel(
+                        team_id=team.id,
+                        week_start=current_week_start,
+                        weekly_info_done=team.weekly_info_done or 0,
+                        weekly_plan_done=team.weekly_plan_done or 0
+                    )
+                    session.add(tw)
+                    team.weekly_info_done = 0
+                    team.weekly_plan_done = 0
+
+                # Increment team's weekly_plan_done
+                team.weekly_plan_done = (team.weekly_plan_done or 0) + 1
+                session.add(team)
+
+            session.commit()
+
+        return JSONResponse(
+            status_code=201,
+            content={"message": "Plan details added", "plan_ids": created_ids}
+        )
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Unexpected Error: {str(e)}")
+
 
 @router.post("/set_targets")
 def set_targets(

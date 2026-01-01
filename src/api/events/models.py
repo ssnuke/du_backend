@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field,Relationship
 from typing import List, Optional,Annotated
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from pydantic import field_validator,EmailStr,constr
 from enum import Enum
@@ -76,6 +76,8 @@ class TeamModel(SQLModel, table=True):
     name: str = Field(index=True, title="Team Name")
     # Relationships
     members: List["TeamMemberLink"] = Relationship(back_populates="team")
+    weekly_info_done: Optional[int] = Field(default=0, title="Team Weekly Info Done")
+    weekly_plan_done: Optional[int] = Field(default=0, title="Team Weekly Plan Done")
     # Aggregated targets (computed, but you can store for reporting/caching)
     weekly_info_target: Optional[int] = Field(default=0, title="Team Weekly Info Target")
     weekly_plan_target: Optional[int] = Field(default=0, title="Team Weekly Plan Target")
@@ -104,7 +106,6 @@ class IrModel(SQLModel, table=True):
     info_count: Optional[int] = Field(title="Info's Given", default=0)
     started_date: Optional[str] = Field(default_factory=current_ist_date_str, title="Started Date")
     name_list: Optional[int] = Field(title="Name List Count", default=0)
-
     # Add these fields:
     weekly_info_target: Optional[int] = Field(default=0, title="Weekly Info Target")
     weekly_plan_target: Optional[int] = Field(default=0, title="Weekly Plan Target")
@@ -127,3 +128,46 @@ class InfoDetailModel(SQLModel, table=True):
     response: InfoResponse = Field(title="Response Option")
     comments: Optional[str] = Field(title="Comments")
     info_name: str = Field(title="Info Name of the Person")
+
+
+# Plan detail records (parallel to InfoDetailModel)
+class PlanDetailModel(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ir_id: str = Field(foreign_key="irmodel.ir_id")
+    plan_date: datetime = Field(default_factory=lambda: datetime.now(IST), title="Plan Date")
+    plan_name: Optional[str] = Field(title="Plan Description")
+    comments: Optional[str] = Field(title="Comments")
+
+
+# Model to store weekly snapshots for teams. Each record represents a week's totals
+class TeamWeekModel(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    team_id: int = Field(foreign_key="teammodel.id")
+    week_start: datetime = Field(title="Week Start Datetime (IST)")
+    weekly_info_done: int = Field(default=0, title="Archived weekly info done")
+    weekly_plan_done: int = Field(default=0, title="Archived weekly plan done")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(IST), title="Record created at (IST)")
+
+
+def get_current_week_start(now: Optional[datetime] = None) -> datetime:
+    """
+    Compute the current week start datetime using Friday 21:31 IST as the week boundary.
+    Returns the datetime (in IST tzinfo) for the most recent Friday 21:31 that is <= now.
+    """
+    if now is None:
+        now = datetime.now(IST)
+    else:
+        # ensure timezone-aware in IST
+        try:
+            now = now.astimezone(IST)
+        except Exception:
+            now = datetime.now(IST)
+
+    # weekday(): Monday=0 ... Sunday=6. Friday == 4
+    days_since_friday = (now.weekday() - 4) % 7
+    candidate = now - timedelta(days=days_since_friday)
+    candidate = candidate.replace(hour=21, minute=31, second=0, microsecond=0)
+    # If candidate is in the future relative to now, subtract 7 days
+    if now < candidate:
+        candidate = candidate - timedelta(days=7)
+    return candidate
